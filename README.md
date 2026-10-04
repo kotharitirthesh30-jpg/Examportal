@@ -1,21 +1,21 @@
 # Orbit Examination Portal
 
-The project includes a static overview page and an interactive exam application, backed by a Node.js API and SQLite database.
+The static site uses Supabase Free for authentication and its Postgres backend. Row-level security protects user data and answer keys; SQL RPCs create attempts, save answers, log integrity events, and calculate results server-side.
 
-## Run locally
+## Supabase setup
 
-Requirements: Node.js 22.13 or newer.
+The migration is in `supabase/migrations/20261004_exam_portal.sql`. It has been applied to the linked Supabase project. If setting up a different project, run that file in its SQL Editor, then set the project's Site URL to the deployed site and allow redirects for `https://kotharitirthesh30-jpg.github.io/**` and `http://localhost:3000/**`.
 
-1. Install dependencies with `npm install`.
-2. Copy `.env.example` to `.env` and set `JWT_SECRET`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD`. Use a random secret of at least 32 characters and an administrator password of at least 12 characters.
-3. Start the app with `npm start`.
-4. Open `http://localhost:3000`. The API health check is at `http://localhost:3000/api/health`.
-5. Run the API tests with `npm test`.
+`app.html` contains the Supabase project URL and publishable key. Publishable keys are intended for browser use; table access is controlled by RLS. Never put a Supabase secret or service-role key in this repository.
 
-The administrator is created from environment settings the first time the database is initialized. Student accounts are created through registration. Passwords are hashed; exam answers and grading are handled by the server.
+Student registration creates a student profile. To designate the first administrator, register and confirm that account, then run this in the Supabase SQL Editor with its email:
 
-## Hosting
+```sql
+update public.profiles
+set role = 'admin'
+where email = lower('your-admin-email@example.com');
+```
 
-GitHub Pages serves static files only; it cannot run this Node.js API. The Node service can serve both HTML pages and the API from one host. For a separate API host, set `window.ORBIT_API_URL` before the Babel script in `app.html` to that host's `/api` URL and add the GitHub Pages origin to `ALLOWED_ORIGINS`. Sign-in on GitHub Pages reports that the API is unconfigured until this is set.
+## Local preview
 
-SQLite data must be stored on persistent storage when deploying to a cloud host. Set `DATABASE_PATH` to a path on the host's persistent disk. Do not commit `.env` or the database file.
+Open `index.html` with a static server such as VS Code Live Server. Authentication and data use the configured Supabase project. GitHub Pages can serve this site directly; no paid Node host is required.

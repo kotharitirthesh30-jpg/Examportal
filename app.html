@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
@@ -57,24 +58,166 @@
 <script type="text/babel" data-presets="react">
   const { useState, useEffect, useRef, createContext, useContext } = React;
 
-  const API_BASE_URL = (window.ORBIT_API_URL || `${window.location.origin}/api`).replace(/\/+$/, '');
-  const API_MISSING_ON_GITHUB_PAGES = !window.ORBIT_API_URL && window.location.hostname.endsWith('github.io');
-  const AUTH_TOKEN_KEY = 'orbit_auth_token';
+  const SUPABASE_URL = 'https://mqcquvxubpaxtllouivf.supabase.co';
+  const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_qfQi_Kg9RtsiyA1QwUCFGA_q9HhUQ3P';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const EMPTY_DB = { users: [], exams: [], attempts: [], results: [], notifications: [] };
 
-  async function apiRequest(path, options = {}) {
-    if (API_MISSING_ON_GITHUB_PAGES) throw new Error('The backend is not deployed yet. Configure window.ORBIT_API_URL to connect this site.');
-    const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    const token = sessionStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) headers.Authorization = `Bearer ${token}`;
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...options,
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  function unwrapSupabase(response) {
+    if (response.error) throw new Error(response.error.message);
+    return response.data;
+  }
+
+  function mapProfile(row) {
+    return {
+      id: row.id,
+      role: row.role,
+      name: row.name,
+      email: row.email,
+      studentId: row.student_id || row.id,
+      department: row.department || 'General',
+      createdAt: Date.parse(row.created_at),
+    };
+  }
+
+  async function loadAppData() {
+    const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+    if (sessionError) throw new Error(sessionError.message);
+    const session = sessionData.session;
+    if (!session) throw new Error('Please sign in to continue.');
+    const profile = unwrapSupabase(await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single());
+    const isAdmin = profile.role === 'admin';
+    const [profileResponse, examResponse, attemptResponse, resultResponse, notificationResponse] = await Promise.all([
+      supabaseClient.from('profiles').select('*').order('created_at', { ascending: false }),
+      supabaseClient.from('exams').select('*').order('created_at', { ascending: false }),
+      supabaseClient.from('attempts').select('*').order('started_at', { ascending: false }),
+      supabaseClient.from('results').select('*').order('created_at', { ascending: false }),
+      isAdmin ? supabaseClient.from('notifications').select('*').order('created_at', { ascending: false }) : Promise.resolve({ data: [], error: null }),
+    ]);
+    const profiles = unwrapSupabase(profileResponse);
+    const examRows = unwrapSupabase(examResponse);
+    const examIds = examRows.map(exam => exam.id);
+    const questionResponse = examIds.length
+      ? await supabaseClient.from('questions').select('*').in('exam_id', examIds).order('position')
+      : { data: [], error: null };
+    const questions = unwrapSupabase(questionResponse);
+    const keyResponse = isAdmin && questions.length
+      ? await supabaseClient.from('answer_keys').select('question_id,correct_index').in('question_id', questions.map(question => question.id))
+      : { data: [], error: null };
+    const answerKeys = new Map(unwrapSupabase(keyResponse).map(key => [key.question_id, key.correct_index]));
+    const questionsByExam = new Map();
+    questions.forEach(question => {
+      const list = questionsByExam.get(question.exam_id) || [];
+      list.push({
+        id: question.id,
+        text: question.text,
+        options: question.options,
+        marks: 1,
+        ...(isAdmin ? { correct: answerKeys.get(question.id) } : {}),
+      });
+      questionsByExam.set(question.exam_id, list);
     });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || 'The request could not be completed.');
-    return payload;
+    const toTime = value => value ? Date.parse(value) : null;
+
+    return {
+      currentUser: mapProfile(profile),
+      users: profiles.map(mapProfile),
+      exams: examRows.map(exam => ({
+        id: exam.id,
+        name: exam.name,
+        subject: exam.subject,
+        description: exam.description,
+        duration: exam.duration,
+        totalMarks: exam.total_marks,
+        passPercent: exam.pass_percent,
+        instructions: exam.instructions,
+        status: exam.status,
+        questions: questionsByExam.get(exam.id) || [],
+        createdAt: toTime(exam.created_at),
+      })),
+      attempts: unwrapSupabase(attemptResponse).map(attempt => ({
+        id: attempt.id,
+        examId: attempt.exam_id,
+        studentId: attempt.student_id,
+        startedAt: toTime(attempt.started_at),
+        submittedAt: toTime(attempt.submitted_at),
+      })),
+      results: unwrapSupabase(resultResponse).map(result => ({
+        id: result.id,
+        attemptId: result.attempt_id,
+        studentId: result.student_id,
+        studentName: result.student_name,
+        examId: result.exam_id,
+        examName: result.exam_name,
+        subject: result.subject,
+        score: result.score,
+        totalMarks: result.total_marks,
+        percentage: result.percentage,
+        passed: result.passed,
+        createdAt: toTime(result.created_at),
+      })),
+      notifications: unwrapSupabase(notificationResponse).map(item => ({
+        id: item.id,
+        type: item.type,
+        studentId: item.student_id,
+        studentName: item.student_name,
+        examId: item.exam_id,
+        examName: item.exam_name,
+        reason: item.reason,
+        message: item.message,
+        createdAt: toTime(item.created_at),
+      })),
+    };
+  }
+
+  async function apiRequest(path, options = {}) {
+    const method = options.method || 'GET';
+    const body = options.body || {};
+    let response;
+    let match;
+
+    if (path === '/exams' && method === 'POST') {
+      response = await supabaseClient.from('exams').insert({
+        name: body.name,
+        subject: body.subject,
+        description: body.description || '',
+        duration: body.duration,
+        total_marks: body.totalMarks,
+        pass_percent: body.passPercent,
+        instructions: body.instructions || '',
+      }).select('id').single();
+      return { exam: { id: unwrapSupabase(response).id } };
+    }
+    if ((match = path.match(/^\/exams\/([^/]+)\/status$/)) && method === 'PATCH') {
+      response = await supabaseClient.from('exams').update({ status: body.status }).eq('id', match[1]);
+      unwrapSupabase(response);
+      return { status: body.status };
+    }
+    if ((match = path.match(/^\/exams\/([^/]+)\/questions$/)) && method === 'POST') {
+      response = await supabaseClient.rpc('admin_add_question', {
+        p_exam_id: match[1], p_text: body.text, p_options: body.options, p_correct: body.correct,
+      });
+      return { question: unwrapSupabase(response) };
+    }
+    if ((match = path.match(/^\/exams\/([^/]+)\/attempts$/)) && method === 'POST') {
+      response = await supabaseClient.rpc('start_exam', { p_exam_id: match[1] });
+      return { attempt: unwrapSupabase(response) };
+    }
+    if ((match = path.match(/^\/attempts\/([^/]+)\/answers$/)) && method === 'PATCH') {
+      response = await supabaseClient.rpc('save_exam_answer', {
+        p_attempt_id: match[1], p_question_index: body.questionIndex, p_option_index: body.optionIndex,
+      });
+      return { answers: unwrapSupabase(response) };
+    }
+    if ((match = path.match(/^\/attempts\/([^/]+)\/integrity-events$/)) && method === 'POST') {
+      response = await supabaseClient.rpc('log_exam_integrity_event', { p_attempt_id: match[1], p_reason: body.reason });
+      return { createdAt: unwrapSupabase(response) };
+    }
+    if ((match = path.match(/^\/attempts\/([^/]+)\/submit$/)) && method === 'POST') {
+      response = await supabaseClient.rpc('submit_exam', { p_attempt_id: match[1] });
+      return { result: unwrapSupabase(response) };
+    }
+    throw new Error(`Unsupported backend operation: ${method} ${path}`);
   }
 
   function cx(...parts) {
@@ -630,7 +773,7 @@
 
           <form onSubmit={submit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm">{role === 'admin' ? 'Admin email' : 'Student email or ID'}</label>
+              <label className="mb-1.5 block text-sm">{role === 'admin' ? 'Admin email' : 'Student email'}</label>
               <input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder={role === 'admin' ? 'admin@example.edu' : 'student@example.edu'} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2.5 text-sm focus-ring outline-none dark:border-white/10 dark:bg-white/5" />
             </div>
             <div>
@@ -682,7 +825,7 @@
 
           {done ? (
             <div className="space-y-4">
-              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-400">Your account was created successfully. You can now sign in.</div>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-400">Your account was created. Check your email for a confirmation link before signing in.</div>
               <a href="#/login/student" className="block rounded-xl bg-gradient-to-r from-[#5b7fff] to-[#8a6bff] px-5 py-3 text-center font-semibold text-white">Proceed to login</a>
             </div>
           ) : (
@@ -1431,16 +1574,23 @@
     const hash = useHashRoute();
 
     useEffect(() => {
-      if (!sessionStorage.getItem(AUTH_TOKEN_KEY)) return;
-      apiRequest('/data')
-        .then(data => {
-          setDb(data);
-          setUser(data.currentUser);
+      let cancelled = false;
+      supabaseClient.auth.getSession()
+        .then(async ({ data, error }) => {
+          if (error) throw error;
+          if (!data.session) return;
+          const appData = await loadAppData();
+          if (cancelled) return;
+          setDb(appData);
+          setUser({ ...appData.currentUser, avatarColor: appData.currentUser.role === 'admin' ? '#8a6bff' : '#5b7fff' });
         })
         .catch(() => {
-          sessionStorage.removeItem(AUTH_TOKEN_KEY);
-          setDb(EMPTY_DB);
+          if (!cancelled) {
+            setDb(EMPTY_DB);
+            setUser(null);
+          }
         });
+      return () => { cancelled = true; };
     }, []);
 
     useEffect(() => {
@@ -1453,19 +1603,25 @@
     }, [theme]);
 
     const refreshDb = async () => {
-      const data = await apiRequest('/data');
+      const data = await loadAppData();
       setDb(data);
       return data;
     };
 
     const login = async (role, credentials) => {
       try {
-        const response = await apiRequest('/auth/login', {
-          method: 'POST',
-          body: { role, identifier: credentials.email, password: credentials.password },
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email: credentials.email.trim(),
+          password: credentials.password,
         });
-        sessionStorage.setItem(AUTH_TOKEN_KEY, response.token);
+        if (error) throw error;
         const data = await refreshDb();
+        if (data.currentUser.role !== role) {
+          await supabaseClient.auth.signOut();
+          setDb(EMPTY_DB);
+          setUser(null);
+          return { ok: false, message: `This account does not have the ${role} role.` };
+        }
         const profile = { ...data.currentUser, avatarColor: role === 'admin' ? '#8a6bff' : '#5b7fff' };
         setUser(profile);
         setAuthTransition({ role: profile.role, name: profile.name, id: profile.id });
@@ -1475,14 +1631,22 @@
         }, 1200);
         return { ok: true, user: profile };
       } catch (error) {
-        sessionStorage.removeItem(AUTH_TOKEN_KEY);
+        await supabaseClient.auth.signOut();
         return { ok: false, message: error.message };
       }
     };
 
     const register = async form => {
       try {
-        await apiRequest('/auth/register', { method: 'POST', body: form });
+        const { error } = await supabaseClient.auth.signUp({
+          email: form.email,
+          password: form.password,
+          options: {
+            data: { name: form.name, student_id: form.studentId, department: form.department },
+            emailRedirectTo: `${window.location.origin}${window.location.pathname}#/login/student`,
+          },
+        });
+        if (error) throw error;
         return { ok: true };
       } catch (error) {
         return { ok: false, message: error.message };
@@ -1490,7 +1654,7 @@
     };
 
     const logout = () => {
-      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      supabaseClient.auth.signOut();
       setDb(EMPTY_DB);
       setUser(null);
       navigate('#/login/student');
