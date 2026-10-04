@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Orbit — Your Smarter Online Examination Platform</title>
+<style>
+  :root{
+    --bg:#090b14;
+    --bg-2:#0d1020;
+    --surface: rgba(255,255,255,0.045);
+    --surface-border: rgba(255,255,255,0.09);
+    --text:#eef0fb;
+    --text-dim:#9aa0c0;
+    --primary:#5b7fff;
+    --primary-2:#8a6bff;
+    --cyan:#57d9e8;
+    --success:#34d399;
+    --warning:#fbbf24;
+    --danger:#f87171;
+    --radius:18px;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  @font-face{ font-family:'SG'; src:local('Space Grotesk'); }
+  html,body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',ui-sans-serif,system-ui,-apple-system,sans-serif;
+    overflow-x:hidden;
+    scroll-behavior:smooth;
+  }
+  h1,h2,h3,.display{
+    font-family:'Space Grotesk','Inter',sans-serif;
+    letter-spacing:-0.02em;
+  }
+  .mono{ font-family:'JetBrains Mono', ui-monospace, monospace; }
+
+  body{ background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(91,127,255,0.16), transparent 60%),
+    radial-gradient(1000px 700px at 100% 10%, rgba(138,107,255,0.14), transparent 55%),
+    var(--bg);
+  }
+
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:20px 48px;
+    backdrop-filter: blur(14px);
+    background: rgba(9,11,20,0.55);
+    border-bottom:1px solid var(--surface-border);
+  }
+  .logo{ display:flex; align-items:center; gap:10px; font-weight:600; font-size:1.15rem; }
+  .logo-mark{ width:26px; height:26px; border-radius:50%; background:conic-gradient(from 90deg, var(--primary), var(--cyan), var(--primary-2), var(--primary)); box-shadow:0 0 18px rgba(91,127,255,0.6); }
+  .nav-links{ display:flex; gap:36px; font-size:0.92rem; color:var(--text-dim); }
+  .nav-links a{ color:inherit; text-decoration:none; transition:color .2s; }
+  .nav-links a:hover{ color:var(--text); }
+  .nav-cta{ display:flex; gap:12px; }
+
+  .btn{
+    padding:11px 22px; border-radius:12px; font-size:0.92rem; font-weight:600;
+    border:1px solid transparent; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease, background .2s;
+    text-decoration:none; display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn-primary{ background:linear-gradient(135deg, var(--primary), var(--primary-2)); color:white; box-shadow:0 8px 24px -8px rgba(91,127,255,0.7); }
+  .btn-primary:hover{ transform:translateY(-2px); box-shadow:0 12px 30px -6px rgba(91,127,255,0.85); }
+  .btn-ghost{ background:var(--surface); border:1px solid var(--surface-border); color:var(--text); }
+  .btn-ghost:hover{ background:rgba(255,255,255,0.08); transform:translateY(-2px); }
+
+  .hero{
+    min-height:100vh; display:flex; align-items:center;
+    padding:140px 48px 80px;
+    position:relative;
+    gap:40px;
+  }
+  .hero-inner{ display:grid; grid-template-columns:1.05fr 0.95fr; gap:40px; align-items:center; max-width:1400px; margin:0 auto; width:100%; }
+  .eyebrow{
+    display:inline-flex; align-items:center; gap:8px; padding:7px 14px; border-radius:999px;
+    background:var(--surface); border:1px solid var(--surface-border); font-size:0.8rem; color:var(--cyan);
+    margin-bottom:24px;
+  }
+  .eyebrow-dot{ width:6px; height:6px; border-radius:50%; background:var(--cyan); box-shadow:0 0 8px var(--cyan); }
+  .hero h1{ font-size:clamp(2.4rem, 4.2vw, 4rem); line-height:1.05; font-weight:600; margin-bottom:22px; }
+  .hero h1 span{ background:linear-gradient(120deg, var(--primary), var(--cyan)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .hero p{ font-size:1.12rem; color:var(--text-dim); max-width:520px; margin-bottom:36px; line-height:1.6; }
+  .hero-ctas{ display:flex; gap:16px; margin-bottom:48px; }
+  .hero-stats{ display:flex; gap:36px; }
+  .stat b{ display:block; font-size:1.5rem; font-family:'Space Grotesk',sans-serif; }
+  .stat span{ font-size:0.82rem; color:var(--text-dim); }
+
+  #hero-canvas-wrap{ position:relative; height:560px; }
+  #hero-canvas{ width:100%; height:100%; display:block; }
+
+  section{ padding:100px 48px; max-width:1400px; margin:0 auto; }
+  .section-head{ max-width:640px; margin:0 auto 56px; text-align:center; }
+  .section-head .eyebrow{ margin-bottom:16px; }
+  .section-head h2{ font-size:clamp(1.8rem,3vw,2.6rem); font-weight:600; margin-bottom:14px; }
+  .section-head p{ color:var(--text-dim); font-size:1.05rem; line-height:1.6; }
+
+  .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .card{
+    background:var(--surface); border:1px solid var(--surface-border); border-radius:var(--radius);
+    padding:30px; transition:transform .25s ease, border-color .25s ease, background .25s ease;
+  }
+  .card:hover{ transform:translateY(-4px); border-color:rgba(91,127,255,0.4); background:rgba(255,255,255,0.06); }
+  .card-icon{
+    width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(135deg, rgba(91,127,255,0.25), rgba(138,107,255,0.25)); margin-bottom:20px; font-size:1.3rem;
+  }
+  .card h3{ font-size:1.1rem; margin-bottom:10px; font-weight:600; }
+  .card p{ color:var(--text-dim); font-size:0.92rem; line-height:1.55; }
+
+  .flow{ display:flex; align-items:stretch; gap:0; }
+  .flow-step{ flex:1; position:relative; padding:28px 26px; background:var(--surface); border:1px solid var(--surface-border); }
+  .flow-step:first-child{ border-radius:var(--radius) 0 0 var(--radius); }
+  .flow-step:last-child{ border-radius:0 var(--radius) var(--radius) 0; }
+  .flow-step + .flow-step{ border-left:none; }
+  .flow-num{ font-family:'JetBrains Mono',monospace; color:var(--cyan); font-size:0.8rem; margin-bottom:12px; display:block; }
+  .flow-step h4{ font-size:0.98rem; margin-bottom:6px; }
+  .flow-step p{ font-size:0.85rem; color:var(--text-dim); line-height:1.5; }
+
+  .cta-band{
+    margin:60px auto 0; max-width:1400px; padding:64px 48px; border-radius:28px;
+    background:linear-gradient(135deg, rgba(91,127,255,0.16), rgba(138,107,255,0.14));
+    border:1px solid rgba(91,127,255,0.25);
+    display:flex; align-items:center; justify-content:space-between; gap:30px; flex-wrap:wrap;
+  }
+  .cta-band h3{ font-size:1.8rem; max-width:480px; }
+  .cta-band p{ color:var(--text-dim); margin-top:8px; }
+
+  footer{ padding:40px 48px; text-align:center; color:var(--text-dim); font-size:0.85rem; border-top:1px solid var(--surface-border); }
+
+  @media (max-width: 980px){
+    .hero-inner{ grid-template-columns:1fr; }
+    .grid-3{ grid-template-columns:1fr; }
+    .flow{ flex-direction:column; }
+    .flow-step:first-child{ border-radius:var(--radius) var(--radius) 0 0; }
+    .flow-step:last-child{ border-radius:0 0 var(--radius) var(--radius); }
+    .flow-step + .flow-step{ border-left:1px solid var(--surface-border); border-top:none; }
+    .nav-links{ display:none; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo"><div class="logo-mark"></div>Orbit</div>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#flow">How it works</a>
+    <a href="#admin">For institutions</a>
+  </div>
+  <div class="nav-cta">
+    <a class="btn btn-ghost" href="app.html#/login/student">Student Login</a>
+    <a class="btn btn-primary" href="app.html#/login/admin">Admin Login</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div>
+      <div class="eyebrow"><span class="eyebrow-dot"></span>Server-synced timers · Zero lost answers</div>
+      <h1>Your smarter <span>online examination</span> platform</h1>
+      <p>Take exams, track your performance, and improve your learning — all from one intelligent platform built for focus, not friction.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-primary" href="app.html#/login/student">Student Login →</a>
+        <a class="btn btn-ghost" href="app.html#/login/admin">Admin Login</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat"><b class="mono">99.98%</b><span>Answer save reliability</span></div>
+        <div class="stat"><b class="mono">&lt;40ms</b><span>Timer server sync</span></div>
+        <div class="stat"><b class="mono">120+</b><span>Institutions onboard</span></div>
+      </div>
+    </div>
+    <div id="hero-canvas-wrap"><canvas id="hero-canvas"></canvas></div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="section-head">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>Built for concentration</div>
+    <h2>Everything an exam day needs</h2>
+    <p>A calm, distraction-free exam experience for students — and a complete control room for the people running the exam.</p>
+  </div>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-icon">⏱</div>
+      <h3>Server-true timer</h3>
+      <p>The countdown is verified against the server clock every few seconds, so a slow laptop or a paused tab can never buy extra time.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">☁</div>
+      <h3>Answer autosave</h3>
+      <p>Every answer is saved the moment it's picked. If the connection drops, answers queue locally and sync the second you're back online.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🛡</div>
+      <h3>Exam integrity signals</h3>
+      <p>Tab-switch and focus-loss detection, full-screen mode, and attempt logging — flagged for review, with every decision confirmed server-side.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">📊</div>
+      <h3>Real performance insight</h3>
+      <p>Score trends, subject breakdowns, and question-level analysis, for students tracking growth and admins tracking a whole class.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗂</div>
+      <h3>Question banks</h3>
+      <p>Tag questions by subject, topic, and difficulty, then assemble exams in minutes with randomized ordering built in.</p>
+    </div>
+    <div class="card">
+      <div class="card-icon">🌗</div>
+      <h3>Light, dark, or system</h3>
+      <p>A full design system that holds up in both themes, from dashboard charts to the exam screen itself.</p>
+    </div>
+  </div>
+</section>
+
+<section id="flow">
+  <div class="section-head">
+    <div class="eyebrow"><span class="eyebrow-dot"></span>The student path</div>
+    <h2>From login to result, in one flow</h2>
+    <p>No hunting for the next step. The platform always shows what's next.</p>
+  </div>
+  <div class="flow">
+    <div class="flow-step"><span class="flow-num">01</span><h4>Sign in</h4><p>Student ID and password, with session handled securely server-side.</p></div>
+    <div class="flow-step"><span class="flow-num">02</span><h4>See what's next</h4><p>Upcoming exams, deadlines, and past performance on one dashboard.</p></div>
+    <div class="flow-step"><span class="flow-num">03</span><h4>Take the exam</h4><p>Clear question navigator, mark-for-review, and a countdown you can trust.</p></div>
+    <div class="flow-step"><span class="flow-num">04</span><h4>See the result</h4><p>Score breakdown, correct answers, and time taken — right after submitting.</p></div>
+  </div>
+</section>
+
+<section id="admin">
+  <div class="cta-band">
+    <div>
+      <h3>Running the exam room, made simple</h3>
+      <p>Create exams, build question banks, schedule sessions, and generate reports — without touching a spreadsheet.</p>
+    </div>
+    <a class="btn btn-primary" href="app.html#/login/admin">Open Admin Console →</a>
+  </div>
+</section>
+
+<footer>© 2026 Orbit Examinations · A concept platform</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  const wrap = document.getElementById('hero-canvas-wrap');
+  const canvas = document.getElementById('hero-canvas');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  let renderer, scene, camera, group, ring, ringInner, particles;
+  const cardMeshes = [];
+  let mouseX = 0, mouseY = 0;
+
+  function init(){
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, w/h, 0.1, 100);
+    camera.position.set(0, 0.6, 9);
+
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    group = new THREE.Group();
+    scene.add(group);
+
+    // central progress ring (torus)
+    const ringGeo = new THREE.TorusGeometry(1.5, 0.045, 16, 100, Math.PI * 1.5);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x5b7fff, transparent:true, opacity:0.9 });
+    ring = new THREE.Mesh(ringGeo, ringMat);
+    ring.rotation.x = Math.PI/2.4;
+    group.add(ring);
+
+    const ringGeo2 = new THREE.TorusGeometry(1.5, 0.045, 16, 100);
+    const ringMat2 = new THREE.MeshBasicMaterial({ color: 0x2a3050, transparent:true, opacity:0.35 });
+    ringInner = new THREE.Mesh(ringGeo2, ringMat2);
+    ringInner.rotation.x = Math.PI/2.4;
+    group.add(ringInner);
+
+    // core sphere
+    const coreGeo = new THREE.IcosahedronGeometry(0.62, 1);
+    const coreMat = new THREE.MeshBasicMaterial({ color:0x8a6bff, wireframe:true, transparent:true, opacity:0.8 });
+    const core = new THREE.Mesh(coreGeo, coreMat);
+    group.add(core);
+
+    // floating exam cards (planes) orbiting
+    const cardColors = [0x5b7fff, 0x8a6bff, 0x57d9e8, 0x34d399];
+    const cardCount = 7;
+    for(let i=0;i<cardCount;i++){
+      const cw = 0.85, ch = 1.15;
+      const geo = new THREE.PlaneGeometry(cw, ch);
+      const mat = new THREE.MeshBasicMaterial({
+        color: cardColors[i % cardColors.length],
+        transparent:true, opacity:0.16, side:THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      const edges = new THREE.EdgesGeometry(geo);
+      const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color:cardColors[i % cardColors.length], transparent:true, opacity:0.7 }));
+      mesh.add(line);
+
+      const angle = (i / cardCount) * Math.PI * 2;
+      const radius = 3.1;
+      mesh.userData = { angle, radius, speed: 0.12 + Math.random()*0.05, yOff: Math.random()*Math.PI*2, floatSpeed: 0.6 + Math.random()*0.4 };
+      group.add(mesh);
+      cardMeshes.push(mesh);
+    }
+
+    // particles
+    const pGeo = new THREE.BufferGeometry();
+    const pCount = 160;
+    const positions = new Float32Array(pCount * 3);
+    for(let i=0;i<pCount;i++){
+      positions[i*3] = (Math.random()-0.5) * 12;
+      positions[i*3+1] = (Math.random()-0.5) * 8;
+      positions[i*3+2] = (Math.random()-0.5) * 8;
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    const pMat = new THREE.PointsMaterial({ color:0x8a6bff, size:0.02, transparent:true, opacity:0.5 });
+    particles = new THREE.Points(pGeo, pMat);
+    scene.add(particles);
+
+    window.addEventListener('resize', onResize);
+    if(!reduceMotion){
+      wrap.addEventListener('mousemove', onMouseMove);
+    }
+    animate();
+  }
+
+  function onMouseMove(e){
+    const rect = wrap.getBoundingClientRect();
+    mouseX = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
+    mouseY = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
+  }
+
+  function onResize(){
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+
+  let t = 0;
+  function animate(){
+    requestAnimationFrame(animate);
+    t += 0.006;
+
+    if(!reduceMotion){
+      ring.rotation.z += 0.003;
+      group.rotation.y += (mouseX*0.3 - group.rotation.y) * 0.03;
+      group.rotation.x += (mouseY*0.15 - group.rotation.x) * 0.03;
+
+      cardMeshes.forEach(m=>{
+        const d = m.userData;
+        const a = d.angle + t * d.speed;
+        m.position.x = Math.cos(a) * d.radius;
+        m.position.z = Math.sin(a) * d.radius;
+        m.position.y = Math.sin(t * d.floatSpeed + d.yOff) * 0.4;
+        m.lookAt(camera.position);
+      });
+
+      particles.rotation.y += 0.0006;
+    } else {
+      cardMeshes.forEach(m=>{
+        const d = m.userData;
+        m.position.x = Math.cos(d.angle) * d.radius;
+        m.position.z = Math.sin(d.angle) * d.radius;
+        m.lookAt(camera.position);
+      });
+    }
+
+    renderer.render(scene, camera);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
